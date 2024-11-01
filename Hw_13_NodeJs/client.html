@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>McDonald's Order System</title>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <link rel="stylesheet" href="/public/style.css">
+    <script src="/socket.io/socket.io.js"></script>
+</head>
+<body class="bg-warning">
+
+<div class="container">
+    <h1 class="text-center text-danger my-4">Меню Макдональдс</h1>
+
+    <!-- Меню -->
+    <div class="row" id="menu"></div>
+
+    <!-- Корзина -->
+    <div class="row mt-4">
+        <div class="col-md-12">
+            <h3 class="text-primary">Корзина</h3>
+            <ul id="cart" class="list-group mb-3"></ul>
+            <button id="makeOrder" class="btn btn-success btn-lg btn-block">Сделать заказ</button>
+        </div>
+    </div>
+
+    <!-- Статус заказа -->
+    <div class="row mt-4">
+        <div class="col-md-12">
+            <h3 class="text-primary">Заказы</h3>
+            <div id="orders" class="order-status"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    var socket = io.connect('http://26.154.68.88:8080');
+    const menu = document.getElementById('menu');
+    const cart = document.getElementById('cart');
+    const ordersDiv = document.getElementById('orders');
+    let order = {items: []};
+    let orderCount = 0;
+
+    // Загрузка продуктов с сервера
+    fetch('/products')
+        .then(response => response.json())
+        .then(data => {
+            data.products.forEach(product => {
+                const productDiv = document.createElement('div');
+                productDiv.className = 'col-md-4 mb-4';
+                productDiv.innerHTML = `
+                <div class="card">
+                    <div class="card-body text-center">
+                        <h5 class="card-title">${product.name}</h5>
+                        <p class="card-text">Цена: ${product.price} грн.</p>
+                        <button class="btn btn-danger" onclick="addToCart('${product.name}', ${product.price})">Добавить в корзину</button>
+                    </div>
+                </div>`;
+                menu.appendChild(productDiv);
+            });
+        })
+        .catch(error => console.error('Ошибка загрузки продуктов:', error));
+
+    function addToCart(name, price) {
+        let existingItem = order.items.find(item => item.name === name);
+        if (existingItem) {
+            existingItem.quantity++;
+        } else {
+            order.items.push({name, price, quantity: 1});
+        }
+        renderCart();
+    }
+
+    function removeFromCart(name) {
+        order.items = order.items.filter(item => item.name !== name);
+        renderCart();
+    }
+
+    function renderCart() {
+        cart.innerHTML = '';
+        order.items.forEach(item => {
+            const li = document.createElement('li');
+            li.className = 'list-group-item d-flex justify-content-between align-items-center';
+            li.innerHTML = `${item.name} (Количество: ${item.quantity})
+                      <button class="btn btn-sm btn-outline-danger" onclick="removeFromCart('${item.name}')">Удалить</button>`;
+            cart.appendChild(li);
+        });
+    }
+
+    document.getElementById('makeOrder').addEventListener('click', function () {
+        if (order.items.length === 0) {
+            alert('Корзина пуста!');
+            return;
+        }
+
+        orderCount++;
+        // Отправка заказа на сервер
+        socket.emit('makeOrder', order);
+        renderOrderStatus(orderCount, `Ваш заказ №${orderCount} принят. Готовится...`, order.items);
+
+        // Очищаем корзину после заказа
+        order = {items: []};
+        renderCart();
+    });
+
+    socket.on('orderReceived', function (data) {
+        updateOrderStatus(data.orderId, data.message);
+    });
+
+    socket.on('orderReady', function (data) {
+        updateOrderStatus(data.orderId, data.message);
+    });
+
+    function renderOrderStatus(orderId, message, items) {
+        const orderDiv = document.createElement('div');
+        orderDiv.className = 'mb-3';
+        orderDiv.id = `order-${orderId}`;
+        orderDiv.innerHTML = `
+            <h5>Заказ №${orderId}</h5>
+            <p>${message}</p>
+            <ul>
+                ${items.map(item => `<li>${item.name} (Количество: ${item.quantity})</li>`).join('')}
+            </ul>
+        `;
+        ordersDiv.appendChild(orderDiv);
+    }
+
+    function updateOrderStatus(orderId, message) {
+        const orderDiv = document.getElementById(`order-${orderId}`);
+        if (orderDiv) {
+            orderDiv.querySelector('p').textContent = message;
+        }
+    }
+</script>
+
+</body>
+</html>

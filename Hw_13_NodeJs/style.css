@@ -1,0 +1,16 @@
+body {
+    background-color: #ffe135; /* Желтый фон, напоминающий Макдональдс */
+}
+
+h1, h3 {
+    font-family: 'Arial', sans-serif;
+}
+
+.card {
+    background-color: #fff3cd;
+    border: 1px solid #f5c6cb;
+}
+
+.card-title {
+    color: #d9534f;
+}
